@@ -222,65 +222,6 @@ namespace UUPDownload.DownloadRequest
             }
         }
 
-        private static async Task CheckAndDownloadUpdates(OSSkuId ReportingSku,
-                    string ReportingVersion,
-                    MachineType MachineType,
-                    string FlightRing,
-                    string FlightingBranchName,
-                    string BranchReadinessLevel,
-                    string CurrentBranch,
-                    string ReleaseType,
-                    bool SyncCurrentVersionOnly,
-                    string ContentType,
-                    string Mail,
-                    string Password,
-                    string OutputFolder,
-                    string Language,
-                    string Edition)
-        {
-            Logging.Log("Checking for updates...");
-
-            CTAC ctac = new(ReportingSku, ReportingVersion, MachineType, FlightRing, FlightingBranchName, BranchReadinessLevel, CurrentBranch, ReleaseType, SyncCurrentVersionOnly, ContentType: ContentType);
-            string token = string.Empty;
-            if (!string.IsNullOrEmpty(Mail) && !string.IsNullOrEmpty(Password))
-            {
-                token = await MBIHelper.GenerateMicrosoftAccountTokenAsync(Mail, Password);
-            }
-
-            IEnumerable<UpdateData> data = await FE3Handler.GetUpdates(null, ctac, token, FileExchangeV3UpdateFilter.ProductRelease);
-            //data = data.Select(x => UpdateUtils.TrimDeltasFromUpdateData(x));
-
-            if (!data.Any())
-            {
-                Logging.Log("No updates found that matched the specified criteria.", Logging.LoggingLevel.Error);
-            }
-            else
-            {
-                Logging.Log($"Found {data.Count()} update(s):");
-
-                for (int i = 0; i < data.Count(); i++)
-                {
-                    UpdateData update = data.ElementAt(i);
-
-                    Logging.Log($"{i}: Title: {update.Xml.LocalizedProperties.Title}");
-                    Logging.Log($"{i}: Description: {update.Xml.LocalizedProperties.Description}");
-                }
-
-                foreach (UpdateData update in data)
-                {
-                    Logging.Log("Title: " + update.Xml.LocalizedProperties.Title);
-                    Logging.Log("Description: " + update.Xml.LocalizedProperties.Description);
-
-                    await ProcessUpdateAsync(update, OutputFolder, MachineType, Language, Edition, true);
-                }
-            }
-            Logging.Log("Completed.");
-            if (Debugger.IsAttached)
-            {
-                _ = Console.ReadLine();
-            }
-        }
-
         private static async Task ProcessUpdateAsync(UpdateData update, string pOutputFolder, MachineType MachineType, string Language = "", string Edition = "", bool WriteMetadata = true)
         {
             string buildstr = "";
