@@ -28,9 +28,9 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Microsoft.EdgeUpdate.Composition.Database;
-using Microsoft.EdgeUpdate;
-using Microsoft.EdgeUpdate.Downloading;
+using UnifiedUpdatePlatform.Services.Composition.Database;
+using UnifiedUpdatePlatform.Services.WindowsUpdate;
+using UUPDownload.Downloading;
 
 namespace UUPDownload.DownloadRequest
 {
@@ -216,7 +216,66 @@ namespace UUPDownload.DownloadRequest
                 }
             }
             Logging.Log("Completed.");
-            if (System.Diagnostics.Debugger.IsAttached)
+            if (Debugger.IsAttached)
+            {
+                _ = Console.ReadLine();
+            }
+        }
+
+        private static async Task CheckAndDownloadUpdates(OSSkuId ReportingSku,
+                    string ReportingVersion,
+                    MachineType MachineType,
+                    string FlightRing,
+                    string FlightingBranchName,
+                    string BranchReadinessLevel,
+                    string CurrentBranch,
+                    string ReleaseType,
+                    bool SyncCurrentVersionOnly,
+                    string ContentType,
+                    string Mail,
+                    string Password,
+                    string OutputFolder,
+                    string Language,
+                    string Edition)
+        {
+            Logging.Log("Checking for updates...");
+
+            CTAC ctac = new(ReportingSku, ReportingVersion, MachineType, FlightRing, FlightingBranchName, BranchReadinessLevel, CurrentBranch, ReleaseType, SyncCurrentVersionOnly, ContentType: ContentType);
+            string token = string.Empty;
+            if (!string.IsNullOrEmpty(Mail) && !string.IsNullOrEmpty(Password))
+            {
+                token = await MBIHelper.GenerateMicrosoftAccountTokenAsync(Mail, Password);
+            }
+
+            IEnumerable<UpdateData> data = await FE3Handler.GetUpdates(null, ctac, token, FileExchangeV3UpdateFilter.ProductRelease);
+            //data = data.Select(x => UpdateUtils.TrimDeltasFromUpdateData(x));
+
+            if (!data.Any())
+            {
+                Logging.Log("No updates found that matched the specified criteria.", Logging.LoggingLevel.Error);
+            }
+            else
+            {
+                Logging.Log($"Found {data.Count()} update(s):");
+
+                for (int i = 0; i < data.Count(); i++)
+                {
+                    UpdateData update = data.ElementAt(i);
+
+                    Logging.Log($"{i}: Title: {update.Xml.LocalizedProperties.Title}");
+                    Logging.Log($"{i}: Description: {update.Xml.LocalizedProperties.Description}");
+                }
+
+                foreach (UpdateData update in data)
+                {
+                    Logging.Log("Title: " + update.Xml.LocalizedProperties.Title);
+                    Logging.Log("Description: " + update.Xml.LocalizedProperties.Description);
+
+                    await ProcessUpdateAsync(update, OutputFolder, MachineType, Language, Edition, true);
+                }
+            }
+            Logging.Log("Completed.");
+            if (Debugger.IsAttached)
             {
                 _ = Console.ReadLine();
             }
@@ -256,7 +315,7 @@ namespace UUPDownload.DownloadRequest
                     {
                         if (Version.TryParse(compDB.TargetOSVersion, out Version currentVer))
                         {
-                            if (currentHighest == null || (currentVer != null && currentVer > currentHighest))
+                            if (currentHighest == null || (currentVer != null && currentVer.GreaterThan(currentHighest)))
                             {
                                 if (!string.IsNullOrEmpty(compDB.TargetBuildInfo) && !string.IsNullOrEmpty(compDB.TargetOSVersion))
                                 {
@@ -268,7 +327,7 @@ namespace UUPDownload.DownloadRequest
                     }
                 }
 
-                // We found a suitable CompDB if it is not null
+                // We found a suitable CompDB is it is not null
                 if (selectedCompDB != null)
                 {
                     // Example format:
@@ -311,7 +370,7 @@ namespace UUPDownload.DownloadRequest
                 }
             }*/
 
-            _ = await Microsoft.EdgeUpdate.Downloads.UpdateUtils.ProcessUpdateAsync(update, pOutputFolder, MachineType, new ReportProgress(), Language, Edition, WriteMetadata);
+            _ = await UnifiedUpdatePlatform.Services.WindowsUpdate.Downloads.UpdateUtils.ProcessUpdateAsync(update, pOutputFolder, MachineType, new ReportProgress(), Language, Edition, WriteMetadata);
         }
     }
 }
