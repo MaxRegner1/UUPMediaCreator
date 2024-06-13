@@ -1,63 +1,30 @@
-name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
-
+name: Build CLI utilities
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [win-x86, win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64]
-        include:
-          - target: win-x86
-            platform: win
-            architecture: x86
-          - target: win-x64
-            platform: win
-            architecture: x64
-          - target: win-arm64
-            platform: win
-            architecture: arm64
-          - target: linux-x64
-            platform: linux
-            architecture: x64
-          - target: linux-arm64
-            platform: linux
-            architecture: arm64
-          - target: osx-x64
-            platform: osx
-            architecture: x64
-          - target: osx-arm64
-            platform: osx
-            architecture: arm64
+        architecture: [x64, x86]
+        platform: [win, linux]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4.1.6
-        continue-on-error: true
+    - name: Checkout repository
+      uses: actions/checkout@v2
 
-      - name: Install .NET SDK
-        uses: actions/setup-dotnet@v4.0.0
-        with:
-          dotnet-version: "7.0.x"
-        continue-on-error: true
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '6.0.x'
 
-      - name: Add MSBuild to PATH
-        uses: microsoft/setup-msbuild@v2.0.0
-        continue-on-error: true
+    - name: Install dependencies
+      run: dotnet restore
 
-      - name: Build CLI utilities
-        shell: pwsh
-        run: | 
-            msbuild /m /t:restore,cli\uupmediaconverter:publish,cli\uupdownload:publish /p:Platform=${{ matrix.architecture }} /p:RuntimeIdentifier=${{ matrix.platform }}-${{ matrix.architecture }} /p:PublishDir=${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/CLIs /p:PublishSingleFile=true /p:PublishTrimmed=false /p:Configuration=Release UUPMediaCreator.sln/
-        continue-on-error: true
+    - name: Build CLI utilities
+      shell: pwsh
+      run: |
+        msbuild /m /t:restore,cli\uupmediaconverter:publish,cli\uupdownload:publish /p:Platform=${{ matrix.architecture }} /p:RuntimeIdentifier=${{ matrix.platform }}-${{ matrix.architecture }} /p:PublishDir=${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/CLIs /p:PublishSingleFile=true /p:PublishTrimmed=false /p:Configuration=Release UUPMediaCreator.sln
+      continue-on-error: true
 
-
-      - name: Create PDB Output Directory
+    - name: Create PDB Output Directory
         shell: pwsh
         run: |
           mkdir ${{ github.workspace }}\artifacts\${{ matrix.platform }}-${{ matrix.architecture }}\PDBs
