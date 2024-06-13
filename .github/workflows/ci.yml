@@ -1,4 +1,13 @@
 name: Build CLI utilities
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -6,6 +15,7 @@ jobs:
       matrix:
         architecture: [x64, x86]
         platform: [win, linux]
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
@@ -25,27 +35,27 @@ jobs:
       continue-on-error: true
 
     - name: Create PDB Output Directory
-        shell: pwsh
-        run: |
-          mkdir ${{ github.workspace }}\artifacts\${{ matrix.platform }}-${{ matrix.architecture }}\PDBs
-        continue-on-error: true
+      shell: pwsh
+      run: |
+        mkdir ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/PDBs
+      continue-on-error: true
 
-      - name: Move PDBs
-        shell: pwsh
-        run: |
-          move ${{ github.workspace }}\artifacts\${{ matrix.platform }}-${{ matrix.architecture }}\CLIs\*.pdb ${{ github.workspace }}\artifacts\${{ matrix.platform }}-${{ matrix.architecture }}\PDBs\
-        continue-on-error: true
+    - name: Move PDBs
+      shell: pwsh
+      run: |
+        move ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/CLIs/*.pdb ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/PDBs/
+      continue-on-error: true
 
-      - name: Upload artifact (Binaries)
-        uses: actions/upload-artifact@v4.3.3
-        with:
-          name: ${{ matrix.platform }}-${{ matrix.architecture }}-binaries
-          path: ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}\CLIs
-        continue-on-error: true
+    - name: Upload artifact (Binaries)
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: ${{ matrix.platform }}-${{ matrix.architecture }}-binaries
+        path: ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/CLIs
+      continue-on-error: true
 
-      - name: Upload artifact (Symbols)
-        uses: actions/upload-artifact@v4.3.3
-        with:
-          name: ${{ matrix.platform }}-${{ matrix.architecture }}-symbols
-          path: ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}\PDBs
-        continue-on-error: true
+    - name: Upload artifact (Symbols)
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: ${{ matrix.platform }}-${{ matrix.architecture }}-symbols
+        path: ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/PDBs
+      continue-on-error: true
