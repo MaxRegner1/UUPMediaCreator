@@ -1,61 +1,83 @@
-name: Build CLI utilities
+name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     strategy:
       matrix:
-        architecture: [x64, x86]
-        platform: [win, linux]
-
+        target: [win-x86,win-x64,win-arm64,linux-x64,linux-arm64,osx-x64,osx-arm64]
+        include:
+          - target: win-x86
+            platform: win
+            architecture: x86
+          - target: win-x64
+            platform: win
+            architecture: x64
+          - target: win-arm64
+            platform: win
+            architecture: arm64
+          - target: linux-x64
+            platform: linux
+            architecture: x64
+          - target: linux-arm64
+            platform: linux
+            architecture: arm64
+          - target: osx-x64
+            platform: osx
+            architecture: x64
+          - target: osx-arm64
+            platform: osx
+            architecture: arm64
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v4.1.6
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: '6.0.x'
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4.0.0
+        with:
+          dotnet-version: "7.0.x"
 
-    - name: Install dependencies
-      run: dotnet restore
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2.0.0
 
-    - name: Build CLI utilities
-      shell: pwsh
-      run: |
-        msbuild /m /t:restore,cli\uupmediaconverter:publish,cli\uupdownload:publish /p:Platform=${{ matrix.architecture }} /p:RuntimeIdentifier=${{ matrix.platform }}-${{ matrix.architecture }} /p:PublishDir=${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/CLIs /p:PublishSingleFile=true /p:PublishTrimmed=false /p:Configuration=Release UUPMediaCreator.sln
-      continue-on-error: true
+      - name: Build CLI utilities
+        shell: pwsh
+        run: |
+          try {
+            msbuild /m /t:restore,cli\uupmediaconverter:publish,cli\uupdownload:publish /p:Platform=${{ matrix.architecture }} /p:RuntimeIdentifier=${{ matrix.platform }}-${{ matrix.architecture }} /p:PublishDir=${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/CLIs /p:PublishSingleFile=true /p:PublishTrimmed=false /p:Configuration=Release UUPMediaCreator.sln
+          } catch {
+            Write-Error "MSBuild encountered an error, but the build will continue."
+          }
 
-    - name: Create PDB Output Directory
-      shell: pwsh
-      run: |
-        mkdir ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/PDBs
-      continue-on-error: true
+      - name: Create PDB Output Directory
+        shell: pwsh
+        run: |
+          mkdir -Force ${{ github.workspace }}\artifacts\${{ matrix.platform }}-${{ matrix.architecture }}\PDBs
 
-    - name: Move PDBs
-      shell: pwsh
-      run: |
-        move ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/CLIs/*.pdb ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/PDBs/
-      continue-on-error: true
+      - name: Move PDBs
+        shell: pwsh
+        run: |
+          try {
+            move-item -Path ${{ github.workspace }}\artifacts\${{ matrix.platform }}-${{ matrix.architecture }}\CLIs\*.pdb -Destination ${{ github.workspace }}\artifacts\${{ matrix.platform }}-${{ matrix.architecture }}\PDBs\
+          } catch {
+            Write-Error "Moving PDBs encountered an error, but the build will continue."
+          }
 
-    - name: Upload artifact (Binaries)
-      uses: actions/upload-artifact@v4.3.3
-      with:
-        name: ${{ matrix.platform }}-${{ matrix.architecture }}-binaries
-        path: ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/CLIs
-      continue-on-error: true
+      - name: Upload artifact (Binaries)
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: ${{ matrix.platform }}-${{ matrix.architecture }}-binaries
+          path: ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}\CLIs
 
-    - name: Upload artifact (Symbols)
-      uses: actions/upload-artifact@v4.3.3
-      with:
-        name: ${{ matrix.platform }}-${{ matrix.architecture }}-symbols
-        path: ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/PDBs
-      continue-on-error: true
+      - name: Upload artifact (Symbols)
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: ${{ matrix.platform }}-${{ matrix.architecture }}-symbols
+          path: ${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}\PDBs
