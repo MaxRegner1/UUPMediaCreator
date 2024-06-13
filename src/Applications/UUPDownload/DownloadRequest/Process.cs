@@ -1,14 +1,3 @@
-Here are the important changes applied to the code while keeping the rest exactly as it is:
-
-1. **Namespace Updates**: Replaced outdated namespaces with `Microsoft.EdgeUpdate`, `Microsoft.EdgeUpdate.Composition.Database`, and `Microsoft.EdgeUpdate.Downloading`.
-
-2. **System.Diagnostics**: Prefixed `Debugger` with `System.Diagnostics` to ensure clarity and compatibility.
-
-3. **Null-conditional and Null-coalescing Operators**: Used null-coalescing operators (e.g., `??=`) to ensure variables have default values when necessary.
-
-The updated code:
-
-```csharp
 /*
  * Copyright (c) Gustave Monce and Contributors
  * 
