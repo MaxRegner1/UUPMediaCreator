@@ -38,45 +38,22 @@ namespace UUPDownload.DownloadRequest
     {
         internal static void ParseDownloadOptions(DownloadRequestOptions opts)
         {
-            // Handling CoreOS 11 and Pre-development builds
-            if (opts.IsCoreOS || opts.IsPreDev)
-            {
-                CheckAndDownloadCoreOSPreDevUpdates(
-                    opts.ReportingSku,
-                    opts.ReportingVersion,
-                    opts.MachineType,
-                    opts.FlightRing,
-                    opts.FlightingBranchName,
-                    opts.BranchReadinessLevel,
-                    opts.CurrentBranch,
-                    opts.ReleaseType,
-                    opts.SyncCurrentVersionOnly,
-                    opts.ContentType,
-                    opts.Mail,
-                    opts.Password,
-                    opts.OutputFolder,
-                    opts.Language,
-                    opts.Edition).Wait();
-            }
-            else
-            {
-                CheckAndDownloadUpdates(
-                    opts.ReportingSku,
-                    opts.ReportingVersion,
-                    opts.MachineType,
-                    opts.FlightRing,
-                    opts.FlightingBranchName,
-                    opts.BranchReadinessLevel,
-                    opts.CurrentBranch,
-                    opts.ReleaseType,
-                    opts.SyncCurrentVersionOnly,
-                    opts.ContentType,
-                    opts.Mail,
-                    opts.Password,
-                    opts.OutputFolder,
-                    opts.Language,
-                    opts.Edition).Wait();
-            }
+            CheckAndDownloadUpdates(
+                opts.ReportingSku,
+                opts.ReportingVersion,
+                opts.MachineType,
+                opts.FlightRing,
+                opts.FlightingBranchName,
+                opts.BranchReadinessLevel,
+                opts.CurrentBranch,
+                opts.ReleaseType,
+                opts.SyncCurrentVersionOnly,
+                opts.ContentType,
+                opts.Mail,
+                opts.Password,
+                opts.OutputFolder,
+                opts.Language,
+                opts.Edition).Wait();
         }
 
         internal static void ParseReplayOptions(DownloadReplayOptions opts)
@@ -125,8 +102,7 @@ namespace UUPDownload.DownloadRequest
 
             CompDB canonicalCompdb = update.CompDBs
                 .Where(compDB => compDB.Tags.Tag
-                .Find(x => x.Name
-                .Equals("UpdateType", StringComparison.InvariantCultureIgnoreCase))?.Value?
+                .Find(x => x.Name.Equals("UpdateType", StringComparison.InvariantCultureIgnoreCase))?.Value
                 .Equals("Canonical", StringComparison.InvariantCultureIgnoreCase) == true)
                 .Where(x => x.AppX != null)
                 .FirstOrDefault();
@@ -142,7 +118,10 @@ namespace UUPDownload.DownloadRequest
                         payloadHash = Convert.ToBase64String(sha.ComputeHash(fileStream));
                     }
 
-                    AppxPackage package = canonicalCompdb.AppX.AppXPackages.Package.Where(p => p.Payload.PayloadItem.FirstOrDefault().PayloadHash == payloadHash).FirstOrDefault();
+                    AppxPackage package = canonicalCompdb.AppX.AppXPackages.Package
+                        .Where(p => p.Payload.PayloadItem.FirstOrDefault().PayloadHash == payloadHash)
+                        .FirstOrDefault();
+
                     if (package == null)
                     {
                         Logging.Log($"Could not locate package with payload hash {payloadHash}. Skipping.");
@@ -153,7 +132,7 @@ namespace UUPDownload.DownloadRequest
                         if (!Directory.Exists(appxFolder))
                         {
                             Logging.Log($"Creating {appxFolder}");
-                            _ = Directory.CreateDirectory(appxFolder);
+                            Directory.CreateDirectory(appxFolder);
                         }
 
                         string appxPath = Path.Combine(appxRoot, package.Payload.PayloadItem.FirstOrDefault().Path);
@@ -170,7 +149,7 @@ namespace UUPDownload.DownloadRequest
                         if (!Directory.Exists(appxFolder))
                         {
                             Logging.Log($"Creating {appxFolder}");
-                            _ = Directory.CreateDirectory(appxFolder);
+                            Directory.CreateDirectory(appxFolder);
                         }
 
                         string appxPath = Path.Combine(appxRoot, package.Payload.PayloadItem.FirstOrDefault().Path);
@@ -184,9 +163,7 @@ namespace UUPDownload.DownloadRequest
             Logging.Log($"Appx fixup applied.");
         }
 
-        // CoreOS and Predev handling
-        private static async Task CheckAndDownloadCoreOSPreDevUpdates(
-                    OSSkuId ReportingSku,
+        private static async Task CheckAndDownloadUpdates(OSSkuId ReportingSku,
                     string ReportingVersion,
                     MachineType MachineType,
                     string FlightRing,
@@ -202,10 +179,11 @@ namespace UUPDownload.DownloadRequest
                     string Language,
                     string Edition)
         {
-            Logging.Log("Checking for CoreOS and Predev updates...");
+            Logging.Log("Checking for updates...");
 
             CTAC ctac = new(ReportingSku, ReportingVersion, MachineType, FlightRing, FlightingBranchName, BranchReadinessLevel, CurrentBranch, ReleaseType, SyncCurrentVersionOnly, ContentType: ContentType);
             string token = string.Empty;
+
             if (!string.IsNullOrEmpty(Mail) && !string.IsNullOrEmpty(Password))
             {
                 token = await MBIHelper.GenerateMicrosoftAccountTokenAsync(Mail, Password);
@@ -215,64 +193,82 @@ namespace UUPDownload.DownloadRequest
 
             if (!data.Any())
             {
-                Logging.Log("No CoreOS/Predev updates found that matched the specified criteria.", Logging.LoggingLevel.Error);
+                Logging.Log("No updates found that matched the specified criteria.", Logging.LoggingLevel.Error);
             }
             else
             {
-                Logging.Log($"Found {data.Count()} CoreOS/Predev update(s):");
+                Logging.Log($"Found {data.Count()} update(s):");
+
+                for (int i = 0; i < data.Count(); i++)
+                {
+                    UpdateData update = data.ElementAt(i);
+                    Logging.Log($"{i}: Title: {update.Xml.LocalizedProperties.Title}");
+                    Logging.Log($"{i}: Description: {update.Xml.LocalizedProperties.Description}");
+                }
 
                 foreach (UpdateData update in data)
                 {
                     Logging.Log("Title: " + update.Xml.LocalizedProperties.Title);
                     Logging.Log("Description: " + update.Xml.LocalizedProperties.Description);
-
                     await ProcessUpdateAsync(update, OutputFolder, MachineType, Language, Edition, true);
                 }
             }
-            Logging.Log("CoreOS/Predev updates completed.");
-        }
 
-        private static async Task CheckAndDownloadUpdates(
-            OSSkuId ReportingSku,
-            string ReportingVersion,
-            MachineType MachineType,
-            string FlightRing,
-            string FlightingBranchName,
-            string BranchReadinessLevel,
-            string CurrentBranch,
-            string ReleaseType,
-            bool SyncCurrentVersionOnly,
-            string ContentType,
-            string Mail,
-            string Password,
-            string OutputFolder,
-            string Language,
-            string Edition)
-        {
-            try
+            Logging.Log("Completed.");
+            if (Debugger.IsAttached)
             {
-                // Existing method to handle normal updates...
-            }
-            catch (Exception ex)
-            {
-                Logging.Log($"Error during update check: {ex.Message}", Logging.LoggingLevel.Error);
+                Console.ReadLine();
             }
         }
 
-        // Clean-up routine to remove temporary files
-        private static void CleanupTemporaryFiles(string tempDirectory)
+        private static async Task ProcessUpdateAsync(UpdateData update, string pOutputFolder, MachineType MachineType, string Language = "", string Edition = "", bool WriteMetadata = true)
         {
-            try
+            string buildstr = "";
+            IEnumerable<string> languages = null;
+
+            Logging.Log("Gathering update metadata...");
+
+            HashSet<CompDB> compDBs = await update.GetCompDBsAsync();
+
+            await Task.WhenAll(
+                Task.Run(async () => buildstr = await update.GetBuildStringAsync()),
+                Task.Run(async () => languages = await update.GetAvailableLanguagesAsync()));
+
+            buildstr ??= "";
+
+            if (buildstr.Contains("GitEnlistment(winpbld)"))
             {
-                if (Directory.Exists(tempDirectory))
+                CompDB selectedCompDB = null;
+                Version currentHighest = null;
+                foreach (CompDB compDB in compDBs)
                 {
-                    Directory.Delete(tempDirectory, true);
-                    Logging.Log($"Temporary files in {tempDirectory} have been deleted.");
+                    if (compDB.TargetOSVersion != null)
+                    {
+                        if (Version.TryParse(compDB.TargetOSVersion, out Version currentVer))
+                        {
+                            if (currentHighest == null || (currentVer != null && currentVer.GreaterThan(currentHighest)))
+                            {
+                                if (!string.IsNullOrEmpty(compDB.TargetBuildInfo) && !string.IsNullOrEmpty(compDB.Packages)) selectedCompDB = compDB;
+                            }
+                        }
+                    }
+                }
+
+                if (selectedCompDB != null)
+                {
+                    Logging.Log($"Using {selectedCompDB.Packages} for download.");
+                }
+                else
+                {
+                    Logging.Log($"No packages found for download.", Logging.LoggingLevel.Error);
                 }
             }
-            catch (Exception ex)
+
+            if (WriteMetadata)
             {
-                Logging.Log($"Error cleaning temporary files: {ex.Message}", Logging.LoggingLevel.Error);
+                Logging.Log("Writing metadata...");
+                string outputPath = Path.Combine(pOutputFolder, update.Xml.LocalizedProperties.Title + ".json");
+                File.WriteAllText(outputPath, JsonSerializer.Serialize(update, new JsonSerializerOptions { WriteIndented = true }));
             }
         }
     }
